@@ -1,68 +1,72 @@
-// Typed-line effect for the hero terminal element.
-// Respects prefers-reduced-motion by rendering the full line instantly.
+// Portfolio interactions: scroll-triggered reveals for sections,
+// batch reveal for skill cards, and column-by-column reveal for the tech grid.
+// All effects fall back to "just show everything" when reduced motion is on
+// or IntersectionObserver isn't supported.
 
-const text = "I turn raw data into decisions worth trusting.";
-const el = document.getElementById('typed');
 const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-if (el) {
-  if (prefersReduced) {
-    el.textContent = text;
-  } else {
-    let i = 0;
-    const speed = 28;
-    function type() {
-      if (i <= text.length) {
-        el.textContent = text.slice(0, i);
-        i++;
-        setTimeout(type, speed);
-      }
-    }
-    type();
-  }
+function showAllFallback() {
+  document.querySelectorAll('.reveal, .reveal-right, .tech-item').forEach((el) => {
+    el.classList.add('is-visible');
+  });
 }
 
-// Technology grid filtering
-const filterBtns = document.querySelectorAll('.filter-btn');
-const techItems = document.querySelectorAll('.tech-item');
+if (prefersReduced || !('IntersectionObserver' in window)) {
+  showAllFallback();
+} else {
 
-filterBtns.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const filter = btn.dataset.filter;
-
-    filterBtns.forEach((b) => {
-      b.classList.remove('is-active');
-      b.setAttribute('aria-selected', 'false');
-    });
-    btn.classList.add('is-active');
-    btn.setAttribute('aria-selected', 'true');
-
-    techItems.forEach((item) => {
-      const show = filter === 'all' || item.dataset.cat === filter;
-      item.classList.toggle('is-hidden', !show);
-    });
-  });
-});
-
-// Scroll-triggered reveal animation
-const revealEls = document.querySelectorAll('.reveal');
-const prefersReducedForReveal = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-if (prefersReducedForReveal) {
-  revealEls.forEach((el) => el.classList.add('is-visible'));
-} else if ('IntersectionObserver' in window) {
-  const observer = new IntersectionObserver(
+  // Generic fade-up reveal (section headers, project cards, contact block)
+  const genericEls = document.querySelectorAll('.reveal');
+  const genericObserver = new IntersectionObserver(
     (entries) => {
-      entries.forEach((entry, i) => {
+      entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          setTimeout(() => entry.target.classList.add('is-visible'), i * 60);
-          observer.unobserve(entry.target);
+          entry.target.classList.add('is-visible');
+          genericObserver.unobserve(entry.target);
         }
       });
     },
     { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
   );
-  revealEls.forEach((el) => observer.observe(el));
-} else {
-  revealEls.forEach((el) => el.classList.add('is-visible'));
+  genericEls.forEach((el) => genericObserver.observe(el));
+
+  // Skills: reveal each batch of 3 cards together, staggered slightly
+  const batches = document.querySelectorAll('.skills-batch');
+  const batchObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const cards = entry.target.querySelectorAll('.reveal-right');
+          cards.forEach((card, i) => {
+            setTimeout(() => card.classList.add('is-visible'), i * 120);
+          });
+          batchObserver.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.2, rootMargin: '0px 0px -40px 0px' }
+  );
+  batches.forEach((batch) => batchObserver.observe(batch));
+
+  // Tech grid: reveal column by column once the grid comes into view
+  const techGrid = document.getElementById('techGrid');
+  if (techGrid) {
+    const techObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            for (let col = 1; col <= 5; col++) {
+              const items = techGrid.querySelectorAll(`.tech-item[data-col="${col}"]`);
+              setTimeout(() => {
+                items.forEach((item) => item.classList.add('is-visible'));
+              }, (col - 1) * 160);
+            }
+            techObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+    );
+    techObserver.observe(techGrid);
+  }
 }
